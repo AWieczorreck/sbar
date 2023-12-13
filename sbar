@@ -3,33 +3,86 @@
 # INIT
 printf "$$" > ~/.cache/pidofbar
 sec=0
+cpu_num=$(nproc --all)
 
 # MODULES
 update_cpu () { 
-	cpu="$(grep -o "^[^ ]*" /proc/loadavg )" 
+    load=$(grep -o "^[^ ]*" /proc/loadavg )
+
+    idle="  $load"
+    low="  $load"
+    mid="  $load"
+    high="  $load"
+    stress="  $load"
+    
+    cur_load=$(echo $(echo "scale=2; $(grep -o "^[^ ]*" /proc/loadavg) / $cpu_num" | bc))
+    
+    if [ $(echo "$cur_load < 0.1" | bc -l) -eq 1 ]; then
+        cpu="$idle"
+    elif [ $(echo "$cur_load < 0.3" | bc -l) -eq 1 ]; then
+        cpu="$low"
+    elif [ $(echo "$cur_load < 0.5" | bc -l) -eq 1 ]; then
+        cpu="$mid"
+    elif [ $(echo "$cur_load < 0.7" | bc -l) -eq 1 ]; then
+        cpu="$high"
+    else
+        cpu="$stress"
+    fi
 }
 
 update_memory () { 
-	memory="$(free -h | sed -n "2s/\([^ ]* *\)\{2\}\([^ ]*\).*/\2/p")"
+	memory="  $(free -h | sed -n "2s/\([^ ]* *\)\{2\}\([^ ]*\).*/\2/p")"
 }
 
 update_time () { 
-	time="$(date "+[%a %d %b] [%I:%M %P]")" 
+    time="$(date '+%d.%m.%Y %H:%M:%S')" 
 }
 
 update_weather () { 
-	weather="$(curl -s "wttr.in?format=1"| sed -E "s/^(.).*\+/\1/")" 
+	weather="$(curl -s "wttr.in?format=2"| sed -E "s/^(.).*\+/\1/")" 
 }
 
-update_bat () { 
-	# you might need to change the path depending on your device
-	read -r bat_status </sys/class/power_supply/BAT1/status
-	read -r bat_capacity </sys/class/power_supply/BAT1/capacity
-	bat="$bat_status $bat_capacity%"
+update_uptime () {
+    uptime="$(uptime | awk -F'( |,|:)+' '{d=h=m=0; if ($7=="min") m=$6; else {if ($7~/^day/) {d=$6;h=$8;m=$9} else {h=$6;m=$7}}} {print d+0,"days,",h+0,"hours,",m+0,"minutes"}')"
+}
+
+update_bat () {
+
+    no_bt="󰂲 "
+    if test -f "/sys/class/power_supply/hid-dc:2c:26:01:25:b7-battery/status"; then
+        # you might need to change the path depending on your device
+        read -r bat_status </sys/class/power_supply/hid-dc:2c:26:01:25:b7-battery/status
+        read -r bat_capacity </sys/class/power_supply/hid-dc:2c:26:01:25:b7-battery/capacity
+
+        full="󰥈 "
+        high="󰥄 "
+        med="󰥂 "
+        low="󰥀 "
+        min="󰤾 "
+
+        icon=""
+
+        if [ $bat_capacity -gt 80 ]; then
+            icon=$full
+        elif [ $bat_capacity -gt 60 ]; then
+            icon=$high
+        elif [ $bat_capacity -gt 40 ]; then
+            icon=$med
+        elif [ $bat_capacity -gt 20 ]; then
+            icon=$low
+        else
+            icon=$min
+        fi
+
+        bat="󰍽 $icon $bat_capacity%"
+    else
+        icon=$no_bt
+        bat="󰍾 $icon"
+    fi
 }
 
 update_vol () { 
-	vol="$([ "$(pamixer --get-mute)" = "false" ] && printf '🔊' || printf '🔇')$(pamixer --get-volume)%"
+	vol="$([ "$(pamixer --get-mute)" = "false" ] && printf '🔊 ' || printf '🔇 ')$(pamixer --get-volume)%"
 }
 
 update_backlight () { 
@@ -39,28 +92,101 @@ update_backlight () {
 	backlight="☀$((actual_brightness*100/max_brightness))%"
 }
 
+update_mic () {
+    sources=( $(pactl list sources| tr -d ' ' | grep -E '(api.alsa.pcm.stream|Volume:front)') )
+    unmuted_count=$(pactl list sources | grep -c 'Mute: no')
+    mic_vol=""
+
+    if [ ${#sources[*]} -gt 2 ]; then
+        count=1
+        for src in "${sources[@]}"
+        do
+            if [[ $src =~ "capture" ]]; then
+                src=${sources[$count-2]}
+                mic_vol=$(echo $src | awk -F/ '{print $2}')
+                break
+            fi
+            let "count+=1" 
+        done
+    fi
+
+    if [ $unmuted_count = 2 ]; then
+        mic=" $mic_vol"
+    else
+        mic=" $mic_vol"
+    fi
+}
+
+check_updates () {
+    num_updates=$(checkupdates | wc -l)
+
+    if [ $num_updates -eq 1 ]; then
+        updates="  $num_updates update"
+    else
+        updates="  $num_updates updates"
+    fi
+}
+
+root_space=0
+home_space=0
+games_space=0
+
+update_diskspace() {
+    free_diskspace / root 
+    free_diskspace /home home 
+    free_diskspace /home/$USER/Games games 
+}
+
+free_diskspace () {
+    space=$(df -h | grep -E "($1)$" | awk -v icon=$3 '
+        /\/.*/ {
+        print icon "  " $4
+        exit 0
+    }')
+
+    if [ $2 = "root" ]; then
+        root_space=$space
+    fi
+
+    if [ $2 = "home" ]; then
+        home_space=$space
+    fi
+
+    if [ $2 = "games" ]; then
+        games_space=$space
+    fi
+}
+
 # For calcurse users, refer https://github.com/pystardust/automeet
-#update_event () { 
-#	event="$(calcurse -n | sed 1d | \
-#		sed -E "s_^ *\[(.*):(.*)\] ([^\t]*)\t?.*_[\1h \2m->\3]_")" 
-#	[ "[]" = "$event" ] && event=""
-#}
+update_event () { 
+	event="$(calcurse -n | sed 1d | \
+		sed -E "s_^ *\[(.*):(.*)\] ([^\t]*)\t?.*_[\1h \2m->\3]_")" 
+	[ "[]" = "$event" ] && event=""
+}
 
 
 # modules that don't update on their own need to be run at the start for getting their initial value
 update_vol
-update_backlight
+update_mic
+update_time
+check_updates
+update_diskspace
+update_bat
+# update_backlight
 
 display () { 
-	#printf "%s\n" " $event [$weather] [$memory $cpu] [$bat] [$backlight] [$vol] $time "
-	xsetroot -name " [$weather] [$memory $cpu] [$bat] [$backlight] [$vol] $time "
+	# printf "%s\n" " $event [$upt] [$weather] [$memory $cpu] [$bat] [$backlight] [$vol] $time "
+	xsetroot -name "$root_space ⎟ $home_space ⎟ $games_space ⎟ $updates ⎟ $memory ⎟ $cpu ⎟ $vol ⎟ $mic ⎟ $bat ⎟ $time "
 }
 
 # SIGNALLING
 # trap	"<function>;display"		"RTMIN+n"
-trap	"update_vol;display"		"RTMIN"
-trap	"update_backlight;display" 	"RTMIN+1"
-trap	"update_bat;display" 		"RTMIN+2"
+trap	"update_vol;display"		"RTMIN+1"
+trap	"update_mic;display"		"RTMIN+1"
+trap	"check_updates;display"		"RTMIN+1"
+trap	"update_diskspace;display"  "RTMIN+1"
+# trap	"update_backlight;display" 	"RTMIN+1"
+trap	"update_bat;display" 		"RTMIN+1"
 # to update it from external commands
 ## kill -m "$(cat ~/.cache/pidofbar)"
 # where m = 34 + n
@@ -70,15 +196,21 @@ do
 	sleep 1 & wait && { 
 		# to update item ever n seconds with a offset of m
 		## [ $((sec % n)) -eq m ] && udpate_item
-		[ $((sec % 5 )) -eq 0 ] && update_time 	# update time every 5 seconds
+        
+		# [ $((sec % 1)) -eq 0 ] && update_uptime
+		[ $((sec % 2)) -eq 0 ] && update_vol
+		[ $((sec % 2)) -eq 0 ] && update_mic
+		[ $((sec % 1)) -eq 0 ] && update_time 	# update time every 1 seconds
 		[ $((sec % 15)) -eq 0 ] && update_cpu 	# update cpu every 15 seconds
+		[ $((sec % 15)) -eq 0 ] && update_bat
 		[ $((sec % 15)) -eq 0 ] && update_memory
-		[ $((sec % 60)) -eq 0 ] && update_bat
-		[ $((sec % 3600)) -eq 2 ] && update_weather 
-		#[ $((sec % 300)) -eq 1 ] && update_event
+		[ $((sec % 30)) -eq 0 ] && update_diskspace
+		#[ $((sec % 3600)) -eq 2 ] && update_weather
+		[ $((sec % 1800)) -eq 2 ] && check_updates
+		# [ $((sec % 300)) -eq 1 ] && update_event
 
 		# how often the display updates ( 5 seconds )
-		[ $((sec % 5 )) -eq 0 ] && display
+		[ $((sec % 1 )) -eq 0 ] && display
 		sec=$((sec + 1))
 	}
 done 
