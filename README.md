@@ -1,6 +1,10 @@
 # sbar
 Simple bar script for dwm and other window managers.
 
+Uses my dwm_patches:
+https://github.com/AWieczorreck/dwm_patches
+
+
 ![screenshot](https://github.com/AWieczorreck/sbar/blob/master/screenshot.png?raw=true)
 
 
