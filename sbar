@@ -1,22 +1,24 @@
 #!/bin/env sh
 
 # INIT
+# to update it from external commands
+#kill -9 "$(cat ~/.cache/pidofbar)"
 printf "$$" > ~/.cache/pidofbar
 sec=0
 cpu_num=$(nproc --all)
 
 # MODULES
-update_cpu () { 
+update_cpu () {
     load=$(grep -o "^[^ ]*" /proc/loadavg )
 
-    idle="  $load"
-    low="  $load"
-    mid="  $load"
-    high="  $load"
-    stress="  $load"
-    
+    idle=" ^c#6495ed^$load^d^"
+    low=" ^c#00FF00^$load^d^"
+    mid=" ^c#FFA500^$load^d^"
+    high=" ^c#8A2BE2^$load^d^"
+    stress=" ^c#FF0000^$load^d^"
+
     cur_load=$(echo $(echo "scale=2; $(grep -o "^[^ ]*" /proc/loadavg) / $cpu_num" | bc))
-    
+
     if [ $(echo "$cur_load < 0.1" | bc -l) -eq 1 ]; then
         cpu="$idle"
     elif [ $(echo "$cur_load < 0.3" | bc -l) -eq 1 ]; then
@@ -30,16 +32,81 @@ update_cpu () {
     fi
 }
 
-update_memory () { 
-	memory="  $(free -h | sed -n "2s/\([^ ]* *\)\{2\}\([^ ]*\).*/\2/p")"
+update_cpu_load() {
+    load=$(mpstat | awk '{gsub(",", ".", $12); if ($12 ~ /[0-9]+$/) print 100-$12}')
+
+    idle=" ^c#6495ed^$load"
+    low=" ^c#00FF00^$load"
+    mid=" ^c#FFA500^$load"
+    high=" ^c#8A2BE2^$load"
+    stress=" ^c#FF0000^$load"
+
+    if [ $(echo "$load < 10.0" | bc -l) -eq 1 ]; then
+        cpu_load="$idle"
+    elif [ $(echo "$load < 25.0" | bc -l) -eq 1 ]; then
+        cpu_load="$low"
+    elif [ $(echo "$load < 50.0" | bc -l) -eq 1 ]; then
+        cpu_load="$mid"
+    elif [ $(echo "$load < 80.0" | bc -l) -eq 1 ]; then
+        cpu_load="$high"
+    else
+        cpu_load="$stress"
+    fi
+
+    cpu_load="$cpu_load%^d^"
+
+}
+
+update_memory () {
+    memory="  $(free -h | sed -n "2s/\([^ ]* *\)\{2\}\([^ ]*\).*/\2/p")"
 }
 
 update_time () { 
-    time="$(date '+%d.%m.%Y %H:%M:%S')" 
+    time="$(date '+%d.%m.%Y %H:%M:%S')"
 }
 
-update_weather () { 
-	weather="$(curl -s "wttr.in?format=2"| sed -E "s/^(.).*\+/\1/")" 
+update_weather () {
+    weather="$(curl -s "wttr.in?format=2"| sed -E "s/^(.).*\+/\1/")"
+}
+
+update_wifi () {
+    signal=$(cat /proc/net/wireless | awk '{ if ($3 ~ /[0-9]+/) print ($3*10)/7}')
+
+    max="󰤨  ^c#00ff00^$signal%^d^"
+    high="󰤥  ^c#00ff00^$signal%^d^"
+    mid="󰤢  ^c#f7ff00^$signal%^d^"
+    low="󰤟  ^c#ffa500^$signal%^d^"
+    off="^c#ff0000^󰤯  $signal%^d^"
+
+    if [ $(echo "$signal > 90.0" | bc -l) -eq 1 ]; then
+        wifi_signal="$max"
+    elif [ $(echo "$signal > 60.0" | bc -l) -eq 1 ]; then
+        wifi_signal="$high"
+    elif [ $(echo "$signal > 40.0" | bc -l) -eq 1 ]; then
+        wifi_signal="$mid"
+    elif [ $(echo "$signal > 15.0" | bc -l) -eq 1 ]; then
+        wifi_signal="$low"
+    else
+        wifi_signal="$off"
+    fi
+}
+
+RXPREV=-1
+TXPREV=-1
+
+update_rx_tx() {
+    RX="$(cat /sys/class/net/wlan0/statistics/rx_bytes)"
+    TX="$(cat /sys/class/net/wlan0/statistics/tx_bytes)"
+
+    if [ $RXPREV -ne -1 ]; then
+        let BWRX=$RX-$RXPREV
+        let BWTX=$TX-$TXPREV
+
+        down=$(echo $BWRX | awk '{ rx = $1/1024/1024; print rx}')
+        up=$(echo $BWTX | awk '{ tx = $1/1024/1024; print tx}')
+    fi
+    RXPREV=$RX
+    TXPREV=$TX
 }
 
 update_uptime () {
@@ -48,11 +115,19 @@ update_uptime () {
 
 update_bat () {
 
-    no_bt="󰂲 "
-    if test -f "/sys/class/power_supply/hid-dc:2c:26:01:25:b7-battery/status"; then
-        # you might need to change the path depending on your device
-        read -r bat_status </sys/class/power_supply/hid-dc:2c:26:01:25:b7-battery/status
-        read -r bat_capacity </sys/class/power_supply/hid-dc:2c:26:01:25:b7-battery/capacity
+    mouse="󰍽"
+    no_mouse="󰍾"
+    gamepad="󰖺"
+    no_gamepad="󰖻"
+
+    mac="ec:83:50:8a:52:70" # gamepad
+
+    no_bt="^c#0082fc^󰂲^d^"
+    bt="^c#0082fc^^d^"
+
+    if test -f "/sys/class/power_supply/hid-$mac-battery/status"; then
+        bat_status="$(cat /sys/class/power_supply/hid-$mac-battery/status)"
+        bat_capacity="$(cat /sys/class/power_supply/hid-$mac-battery/capacity)"
 
         full="󰥈 "
         high="󰥄 "
@@ -60,7 +135,7 @@ update_bat () {
         low="󰥀 "
         min="󰤾 "
 
-        icon=""
+        icon="$gamepad"
 
         if [ $bat_capacity -gt 80 ]; then
             icon=$full
@@ -74,22 +149,22 @@ update_bat () {
             icon=$min
         fi
 
-        bat="󰍽 $icon $bat_capacity%"
+        bat="$bt ^c#0082fc^$gamepad $icon^d^ $bat_capacity%"
     else
         icon=$no_bt
-        bat="󰍾 $icon"
+        bat="$icon"
     fi
 }
 
 update_vol () { 
-	vol="$([ "$(pamixer --get-mute)" = "false" ] && printf '🔊 ' || printf '🔇 ')$(pamixer --get-volume)%"
+    vol="$([ "$(pamixer --get-mute)" = "false" ] && printf '  ' || printf '^c#ff0000^ ^d^ ')$(pamixer --get-volume)%"
 }
 
-update_backlight () { 
-	# you might need to change the path depending on your device
-	read -r actual_brightness </sys/class/backlight/intel_backlight/actual_brightness
-	read -r max_brightness </sys/class/backlight/intel_backlight/max_brightness
-	backlight="☀$((actual_brightness*100/max_brightness))%"
+update_backlight () {
+    # you might need to change the path depending on your device
+    read -r actual_brightness </sys/class/backlight/intel_backlight/actual_brightness
+    read -r max_brightness </sys/class/backlight/intel_backlight/max_brightness
+    backlight="☀$((actual_brightness*100/max_brightness))%"
 }
 
 update_mic () {
@@ -106,14 +181,14 @@ update_mic () {
                 mic_vol=$(echo $src | awk -F/ '{print $2}')
                 break
             fi
-            let "count+=1" 
+            let "count+=1"
         done
     fi
 
     if [ $unmuted_count = 2 ]; then
         mic=" $mic_vol"
     else
-        mic=" $mic_vol"
+        mic="^c#ff0000^ ^d^$mic_vol"
     fi
 }
 
@@ -133,19 +208,37 @@ games_space=0
 
 update_diskspace() {
     free_diskspace / root 
-    free_diskspace /home home 
+    #free_diskspace /home home 
     free_diskspace /home/$USER/Games games 
+}
+
+update_bitcoin() {
+    btc_price=$(curl -s  https://api.coindesk.com/v1/bpi/currentprice.json | jq '.bpi.EUR.rate ' | sed 's/"//g')
+    bitcoin_price="^c#f7931a^ ^d^$btc_price"
 }
 
 free_diskspace () {
     space=$(df -h | grep -E "($1)$" | awk -v icon=$3 '
         /\/.*/ {
-        print icon "  " $4
+        print $4
         exit 0
     }')
 
+    freespace_percent=$(df -h | grep -E "($1)$" | awk '{ gsub("%","",$5); print 100-$5}')
+    used_percent=$(df -h | grep -E "($1)$" | awk '{ print $5}')
+
+    if [ $freespace_percent -gt 75 ]; then
+        colorstate="^c#00ff00^"
+    elif [ $freespace_percent -gt 50 ]; then
+        colorstate="^c#fffa00^"
+    elif [ $freespace_percent -gt 25 ]; then
+        colorstate="^c#ffa500^"
+    else
+        colorstate="^c#ff0000^"
+    fi
+
     if [ $2 = "root" ]; then
-        root_space=$space
+        root_space="$3  $colorstate$space($used_percent)^d^"
     fi
 
     if [ $2 = "home" ]; then
@@ -153,15 +246,15 @@ free_diskspace () {
     fi
 
     if [ $2 = "games" ]; then
-        games_space=$space
+        games_space="$3  $colorstate$space($used_percent)^d^"
     fi
 }
 
 # For calcurse users, refer https://github.com/pystardust/automeet
-update_event () { 
-	event="$(calcurse -n | sed 1d | \
-		sed -E "s_^ *\[(.*):(.*)\] ([^\t]*)\t?.*_[\1h \2m->\3]_")" 
-	[ "[]" = "$event" ] && event=""
+update_event () {
+    event="$(calcurse -n | sed 1d | \
+        sed -E "s_^ *\[(.*):(.*)\] ([^\t]*)\t?.*_[\1h \2m->\3]_")"
+    [ "[]" = "$event" ] && event=""
 }
 
 
@@ -172,47 +265,48 @@ update_time
 check_updates
 update_diskspace
 update_bat
-# update_backlight
+update_bitcoin
+#update_backlight
 
-display () { 
-	# printf "%s\n" " $event [$upt] [$weather] [$memory $cpu] [$bat] [$backlight] [$vol] $time "
-	xsetroot -name "$root_space ⎟ $home_space ⎟ $games_space ⎟ $updates ⎟ $memory ⎟ $cpu ⎟ $vol ⎟ $mic ⎟ $bat ⎟ $time "
+display () {
+    # printf "%s\n" " $event [$upt] [$weather] [$memory $cpu] [$bat] [$backlight] [$vol] $time "
+    xsetroot -name " $bitcoin_price | $root_space | $games_space | $updates | $memory | $cpu_load | $wifi_signal | $vol | $mic | $bat | $time "
 }
 
 # SIGNALLING
-# trap	"<function>;display"		"RTMIN+n"
-trap	"update_vol;display"		"RTMIN+1"
-trap	"update_mic;display"		"RTMIN+1"
-trap	"check_updates;display"		"RTMIN+1"
-trap	"update_diskspace;display"  "RTMIN+1"
-# trap	"update_backlight;display" 	"RTMIN+1"
-trap	"update_bat;display" 		"RTMIN+1"
-# to update it from external commands
-## kill -m "$(cat ~/.cache/pidofbar)"
+# trap  "<function>;display"        "RTMIN+n"
+trap    "update_vol;display"        "RTMIN+1"
+trap    "update_mic;display"        "RTMIN+1"
+trap    "check_updates;display"     "RTMIN+1"
+trap    "update_diskspace;display"  "RTMIN+1"
+#trap   "update_backlight;display"  "RTMIN+1"
+trap    "update_bat;display"        "RTMIN+1"
 # where m = 34 + n
 
 while true
 do
-	sleep 1 & wait && { 
-		# to update item ever n seconds with a offset of m
-		## [ $((sec % n)) -eq m ] && udpate_item
-        
-		# [ $((sec % 1)) -eq 0 ] && update_uptime
-		[ $((sec % 2)) -eq 0 ] && update_vol
-		[ $((sec % 2)) -eq 0 ] && update_mic
-		[ $((sec % 1)) -eq 0 ] && update_time 	# update time every 1 seconds
-		[ $((sec % 15)) -eq 0 ] && update_cpu 	# update cpu every 15 seconds
-		[ $((sec % 15)) -eq 0 ] && update_bat
-		[ $((sec % 15)) -eq 0 ] && update_memory
-		[ $((sec % 30)) -eq 0 ] && update_diskspace
-		#[ $((sec % 3600)) -eq 2 ] && update_weather
-		[ $((sec % 1800)) -eq 2 ] && check_updates
-		# [ $((sec % 300)) -eq 1 ] && update_event
+    sleep 1 & wait && {
+        # to update item ever n seconds with a offset of m
+        ## [ $((sec % n)) -eq m ] && update_item
 
-		# how often the display updates ( 5 seconds )
-		[ $((sec % 1 )) -eq 0 ] && display
-		sec=$((sec + 1))
-	}
-done 
+        #[ $((sec % 1)) -eq 0 ] && update_uptime
+        [ $((sec % 2)) -eq 0 ] && update_vol
+        [ $((sec % 2)) -eq 0 ] && update_mic
+        [ $((sec % 1)) -eq 0 ] && update_time    # update time every 1 seconds
+        [ $((sec % 1)) -eq 0 ] && update_rx_tx
+        #[ $((sec % 15)) -eq 0 ] && update_cpu    # update cpu every 15 seconds
+        [ $((sec % 15)) -eq 0 ] && update_cpu_load    # update cpu every 15 seconds
+        [ $((sec % 15)) -eq 0 ] && update_bat
+        [ $((sec % 15)) -eq 0 ] && update_wifi
+        [ $((sec % 15)) -eq 0 ] && update_memory
+        [ $((sec % 30)) -eq 0 ] && update_diskspace
+        #[ $((sec % 3600)) -eq 2 ] && update_weather
+        [ $((sec % 1800)) -eq 2 ] && check_updates
+        [ $((sec % 1800)) -eq 2 ] && update_bitcoin
+        # [ $((sec % 300)) -eq 1 ] && update_event
 
-
+        # how often the display updates ( 5 seconds )
+        [ $((sec % 1 )) -eq 0 ] && display
+        sec=$((sec + 1))
+    }
+done
