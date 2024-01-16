@@ -236,7 +236,7 @@ update_diskspace() {
 
 update_bitcoin() {
     btc_price=$(curl -s  https://api.coindesk.com/v1/bpi/currentprice.json | jq '.bpi.EUR.rate ' | sed 's/"//g')
-    bitcoin_price="^c#f7931a^ ^d^$btc_price"
+    bitcoin_price="^c#f7931a^ ^d^$btc_price€"
 }
 
 free_diskspace () {
