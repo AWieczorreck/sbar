@@ -214,10 +214,13 @@ update_mic () {
 check_updates () {
     num_updates=$(checkupdates | wc -l)
 
-    if [ $num_updates -eq 1 ]; then
-        updates="  $num_updates update"
+    if [ $num_updates -eq 0 ]; then
+        updates="^c#00ff00^ ^d^ up to date"
+    elif [ $num_updates -eq 1 ]; then
+
+        updates="^c#d871a6^ ^d^ $num_updates update"
     else
-        updates="  $num_updates updates"
+        updates="^c#d871a6^ ^d^ $num_updates updates"
     fi
 }
 
