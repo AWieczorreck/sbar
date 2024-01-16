@@ -58,7 +58,26 @@ update_cpu_load() {
 }
 
 update_memory () {
-    memory="  $(free -h | sed -n "2s/\([^ ]* *\)\{2\}\([^ ]*\).*/\2/p")"
+    icon=" "
+
+    percent_used=$(free -m | sed -n '2p' | awk '{printf "%.1f", ($3/$2)*100}')
+    free=$(free -h | sed -n '2p' | awk '{print $4 }')
+
+    color="^c"
+
+    if [ $(echo "if (${percent_used} < 10.0) 1 else 0" | bc -l) -eq 1 ]; then
+        color="${color}#00ffbb"
+    elif [ $(echo "if (${percent_used} < 20.0) 1 else 0" | bc -l) -eq 1 ]; then
+        color="${color}#00ff00"
+    elif [ $(echo "if (${percent_used} < 50.0) 1 else 0" | bc -l) -eq 1 ]; then
+        color="${color}#ffff00"
+    elif [ $(echo "if (${percent_used} < 75.0) 1 else 0" | bc -l) -eq 1 ]; then
+        color="${color}#f7931a"
+    else
+        color="${color}#ff0000"
+    fi
+
+    memory="$icon $color^$free($percent_used%)^d^"
 }
 
 update_time () { 
