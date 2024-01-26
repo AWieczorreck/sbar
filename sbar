@@ -294,27 +294,28 @@ update_event () {
 
 # modules that don't update on their own need to be run at the start for getting their initial value
 update_vol
-update_mic
+#update_mic
 update_time
 check_updates
 update_diskspace
-update_bat
-update_bitcoin
+#update_bat
+#update_bitcoin
 #update_backlight
 
 display () {
-    # printf "%s\n" " $event [$upt] [$weather] [$memory $cpu] [$bat] [$backlight] [$vol] $time "
-    xsetroot -name " $bitcoin_price | $root_space | $games_space | $updates | $memory | $cpu_load | $wifi_signal | $vol | $mic | $bat | $time "
+    xsetroot -name " $root_space | $games_space | $updates | $memory | $cpu_load | $wifi_signal | $vol | $time "
 }
 
 # SIGNALLING
 # trap  "<function>;display"        "RTMIN+n"
-trap    "update_vol;display"        "RTMIN+1"
-trap    "update_mic;display"        "RTMIN+1"
-trap    "check_updates;display"     "RTMIN+1"
-trap    "update_diskspace;display"  "RTMIN+1"
-#trap   "update_backlight;display"  "RTMIN+1"
-trap    "update_bat;display"        "RTMIN+1"
+##trap    "update_mic;display"        "RTMIN+1"
+
+#trap    "update_vol;display"        "RTMIN+1"
+#trap    "check_updates;display"     "RTMIN+1"
+#trap    "update_diskspace;display"  "RTMIN+1"
+
+##trap   "update_backlight;display"  "RTMIN+1"
+##trap    "update_bat;display"        "RTMIN+1"
 # where m = 34 + n
 
 while true
