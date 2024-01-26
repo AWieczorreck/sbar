@@ -101,7 +101,7 @@ update_weather () {
 }
 
 update_wifi () {
-    signal=$(cat /proc/net/wireless | awk '{ if ($3 ~ /[0-9]+/) print ($3*10)/7}')
+    signal=$(cat /proc/net/wireless | awk '{ if ($3 ~ /[0-9]+/) print ($3*10)/7}' | LC_ALL=C numfmt --format=%.0f)
 
     max="󰤨  ^c#00ff00^$signal%^d^"
     high="󰤥  ^c#00ff00^$signal%^d^"
