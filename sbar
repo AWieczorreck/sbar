@@ -113,9 +113,9 @@ update_wifi () {
         wifi_signal="$max"
     elif [ $(echo "$signal > 60.0" | bc -l) -eq 1 ]; then
         wifi_signal="$high"
-    elif [ $(echo "$signal > 40.0" | bc -l) -eq 1 ]; then
+    elif [ $(echo "$signal > 30.0" | bc -l) -eq 1 ]; then
         wifi_signal="$mid"
-    elif [ $(echo "$signal > 15.0" | bc -l) -eq 1 ]; then
+    elif [ $(echo "$signal > 5.0" | bc -l) -eq 1 ]; then
         wifi_signal="$low"
     else
         wifi_signal="$off"
