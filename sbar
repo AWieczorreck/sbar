@@ -326,18 +326,18 @@ do
 
         #[ $((sec % 1)) -eq 0 ] && update_uptime
         [ $((sec % 2)) -eq 0 ] && update_vol
-        [ $((sec % 2)) -eq 0 ] && update_mic
+        #[ $((sec % 2)) -eq 0 ] && update_mic
         [ $((sec % 1)) -eq 0 ] && update_time    # update time every 1 seconds
-        [ $((sec % 1)) -eq 0 ] && update_rx_tx
+        #[ $((sec % 1)) -eq 0 ] && update_rx_tx
         #[ $((sec % 15)) -eq 0 ] && update_cpu    # update cpu every 15 seconds
         [ $((sec % 15)) -eq 0 ] && update_cpu_load    # update cpu every 15 seconds
-        [ $((sec % 15)) -eq 0 ] && update_bat
+        #[ $((sec % 15)) -eq 0 ] && update_bat
         [ $((sec % 15)) -eq 0 ] && update_wifi
         [ $((sec % 15)) -eq 0 ] && update_memory
         [ $((sec % 30)) -eq 0 ] && update_diskspace
         #[ $((sec % 3600)) -eq 2 ] && update_weather
-        [ $((sec % 1800)) -eq 2 ] && check_updates
-        [ $((sec % 1800)) -eq 2 ] && update_bitcoin
+        [ $((sec % 120)) -eq 2 ] && check_updates
+        # [ $((sec % 1800)) -eq 2 ] && update_bitcoin
         # [ $((sec % 300)) -eq 1 ] && update_event
 
         # how often the display updates ( 5 seconds )
