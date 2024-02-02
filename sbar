@@ -72,7 +72,7 @@ update_cpu_load() {
 update_memory () {
     icon=" "
 
-    percent_used=$(free -m | sed -n '2p' | awk '{printf "%.1f", ($3/$2)*100}')
+    percent_used=$(free -m | sed -n '2p' | awk '{printf "%.1f", ($3/$2)*100}' | sed "s/,/./")
     free=$(free -h | sed -n '2p' | awk '{print $4 }')
 
     color="^c"
@@ -101,7 +101,7 @@ update_weather () {
 }
 
 update_wifi () {
-    signal=$(cat /proc/net/wireless | awk '{ if ($3 ~ /[0-9]+/) print ($3*10)/7}' | LC_ALL=C numfmt --format=%.0f)
+    signal=$(cat /proc/net/wireless | awk '{ if ($3 ~ /[0-9]+/) print ($3*10)/7}' | sed "s/,/./" | LC_ALL=C numfmt --format=%.0f)
 
     max="󰤨  ^c#00ff00^$signal%^d^"
     high="󰤥  ^c#00ff00^$signal%^d^"
@@ -145,6 +145,81 @@ update_uptime () {
 }
 
 update_bat () {
+    bat_discharging_9="󰂎 "
+    bat_discharging_18="󰁺 "
+    bat_discharging_27="󰁻 "
+    bat_discharging_36="󰁼 "
+    bat_discharging_45="󰁽 "
+    bat_discharging_54="󰁾 "
+    bat_discharging_63="󰁿 "
+    bat_discharging_72="󰂀 "
+    bat_discharging_81="󰂁 "
+    bat_discharging_90="󰂂 "
+    bat_discharging_95="󰁹 "
+    bat_charging_14="󰂆 "
+    bat_charging_28="󰂇 "
+    bat_charging_42="󰂈 "
+    bat_charging_56="󰂉 "
+    bat_charging_70="󰂊 "
+    bat_charging_84="󰂋 "
+    bat_charging_95="󰂅 "
+    charging=" "
+    
+    if test -f "/sys/class/power_supply/BAT0/uevent"; then
+        status="$(cat /sys/class/power_supply/BAT0/status)"
+	capacity="$(cat /sys/class/power_supply/BAT0/capacity)"
+
+	symbol=""
+
+	if [ $status = "Discharging" ]; then
+	    if [ $capacity -lt 10 ]; then
+		symbol=$bat_discharging_9
+	    elif [ $capacity -lt 19 ]; then
+		symbol=$bat_discharging_18
+	    elif [ $capacity -lt 28 ]; then
+		symbol=$bat_discharging_27
+	    elif [ $capacity -lt 37 ]; then
+		symbol=$bat_discharging_36
+	    elif [ $capacity -lt 46 ]; then
+		symbol=$bat_discharging_45
+	    elif [ $capacity -lt 55 ]; then
+		symbol=$bat_discharging_54
+	    elif [ $capacity -lt 64 ]; then
+		symbol=$bat_discharging_63
+	    elif [ $capacity -lt 73 ]; then
+		symbol=$bat_discharging_72
+	    elif [ $capacity -lt 82 ]; then
+		symbol=$bat_discharging_81
+	    elif [ $capacity -lt 91 ]; then
+		symbol=$bat_discharging_90
+	    else 
+		symbol=$bat_discharging_95
+	    fi
+        else 
+	    if [ $capacity -lt 15 ]; then
+		symbol=$bat_charging_14
+	    elif [ $capacity -lt 29 ]; then
+		symbol=$bat_charging_28
+	    elif [ $capacity -lt 43 ]; then
+		symbol=$bat_charging_42
+	    elif [ $capacity -lt 57 ]; then
+		symbol=$bat_charging_56
+	    elif [ $capacity -lt 71 ]; then
+		symbol=$bat_charging_70
+	    elif [ $capacity -lt 85 ]; then
+		symbol=$bat_charging_84
+	    else 
+		symbol=$bat_charging_95
+	    fi
+
+	    symbol="${symbol}${charging} "
+	fi
+
+	battery="${symbol}${capacity}%"
+    fi
+}
+
+update_bt () {
 
     mouse="󰍽"
     no_mouse="󰍾"
@@ -199,7 +274,7 @@ update_backlight () {
 }
 
 update_mic () {
-    sources=( $(pactl list sources| tr -d ' ' | grep -E '(api.alsa.pcm.stream|Volume:front)') )
+    sources=$(pactl list sources| tr -d ' ' | grep -E '(api.alsa.pcm.stream|Volume:front)')
     unmuted_count=$(pactl list sources | grep -c 'Mute: no')
     mic_vol=""
 
@@ -243,7 +318,7 @@ games_space=0
 update_diskspace() {
     free_diskspace / root 
     #free_diskspace /home home 
-    free_diskspace /home/$USER/Games games 
+    #free_diskspace /home/$USER/Games games 
 }
 
 update_bitcoin() {
@@ -296,14 +371,15 @@ update_event () {
 update_vol
 #update_mic
 update_time
-check_updates
+update_bat
+#check_updates
 update_diskspace
-#update_bat
+#update_bt
 #update_bitcoin
 #update_backlight
 
 display () {
-    xsetroot -name " $root_space | $games_space | $updates | $memory | $cpu_load | $wifi_signal | $vol | $time "
+    xsetroot -name " $root_space | $memory | $cpu_load | $wifi_signal | $battery | $vol | $time "
 }
 
 # SIGNALLING
@@ -315,7 +391,7 @@ display () {
 #trap    "update_diskspace;display"  "RTMIN+1"
 
 ##trap   "update_backlight;display"  "RTMIN+1"
-##trap    "update_bat;display"        "RTMIN+1"
+##trap    "update_bt;display"        "RTMIN+1"
 # where m = 34 + n
 
 while true
@@ -327,16 +403,17 @@ do
         #[ $((sec % 1)) -eq 0 ] && update_uptime
         [ $((sec % 2)) -eq 0 ] && update_vol
         #[ $((sec % 2)) -eq 0 ] && update_mic
+        [ $((sec % 5)) -eq 0 ] && update_bat
         [ $((sec % 1)) -eq 0 ] && update_time    # update time every 1 seconds
         #[ $((sec % 1)) -eq 0 ] && update_rx_tx
         #[ $((sec % 15)) -eq 0 ] && update_cpu    # update cpu every 15 seconds
         [ $((sec % 15)) -eq 0 ] && update_cpu_load    # update cpu every 15 seconds
-        #[ $((sec % 15)) -eq 0 ] && update_bat
+        #[ $((sec % 15)) -eq 0 ] && update_bt
         [ $((sec % 15)) -eq 0 ] && update_wifi
         [ $((sec % 15)) -eq 0 ] && update_memory
         [ $((sec % 30)) -eq 0 ] && update_diskspace
-        #[ $((sec % 3600)) -eq 2 ] && update_weather
-        [ $((sec % 120)) -eq 2 ] && check_updates
+        # [ $((sec % 3600)) -eq 2 ] && update_weather
+        # [ $((sec % 120)) -eq 2 ] && check_updates
         # [ $((sec % 1800)) -eq 2 ] && update_bitcoin
         # [ $((sec % 300)) -eq 1 ] && update_event
 
