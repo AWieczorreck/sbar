@@ -1,72 +1,34 @@
-#!/bin/env sh
+#!/bin/bash
 
-# INIT
-# to update it from external commands
-#kill -9 "$(cat ~/.cache/pidofbar)"
 printf "$$" > ~/.cache/pidofbar
+
 sec=0
 cpu_num=$(nproc --all)
 
-# MODULES
-update_cpu () {
+update_cpu_load () {
     load=$(grep -o "^[^ ]*" /proc/loadavg )
 
-    #idle=" ^c#6495ed^$load^d^"
-    #low=" ^c#00FF00^$load^d^"
-    #mid=" ^c#FFA500^$load^d^"
-    #high=" ^c#8A2BE2^$load^d^"
-    #stress=" ^c#FF0000^$load^d^"
-
-    idle="^c#6495ed^▁ $load^d^"
-    low="^c#00FF00^▃ $load^d^"
-    mid="^c#FFA500^▅ $load^d^"
-    high="^c#8A2BE2^█ $load^d^"
-    stress="^c#FF0000^ $load^d^"
+    idle="#6495ed^▁ $load"
+    low="#00FF00^▃ $load"
+    mid="#FFA500^▅ $load"
+    high="#8A2BE2^█ $load"
+    stress="#FF0000^ $load"
 
     cur_load=$(echo $(echo "scale=2; $(grep -o "^[^ ]*" /proc/loadavg) / $cpu_num" | bc))
 
     if [ $(echo "$cur_load < 0.1" | bc -l) -eq 1 ]; then
-        cpu="$idle"
-    elif [ $(echo "$cur_load < 0.3" | bc -l) -eq 1 ]; then
-        cpu="$low"
-    elif [ $(echo "$cur_load < 0.5" | bc -l) -eq 1 ]; then
-        cpu="$mid"
-    elif [ $(echo "$cur_load < 0.7" | bc -l) -eq 1 ]; then
-        cpu="$high"
-    else
-        cpu="$stress"
-    fi
-}
-
-update_cpu_load() {
-    load=$(mpstat | awk '{gsub(",", ".", $12); if ($12 ~ /[0-9]+$/) print 100-$12}')
-
-    #idle=" ^c#6495ed^$load"
-    #low=" ^c#00FF00^$load"
-    #mid=" ^c#FFA500^$load"
-    #high=" ^c#8A2BE2^$load"
-    #stress=" ^c#FF0000^$load"
-
-    idle="^c#6495ed^▁ $load"
-    low="^c#00FF00^▃ $load"
-    mid="^c#FFA500^▅ $load"
-    high="^c#8A2BE2^█ $load"
-    stress="^c#FF0000^ $load"
-
-    if [ $(echo "$load < 10.0" | bc -l) -eq 1 ]; then
         cpu_load="$idle"
-    elif [ $(echo "$load < 25.0" | bc -l) -eq 1 ]; then
+    elif [ $(echo "$cur_load < 0.3" | bc -l) -eq 1 ]; then
         cpu_load="$low"
-    elif [ $(echo "$load < 50.0" | bc -l) -eq 1 ]; then
+    elif [ $(echo "$cur_load < 0.5" | bc -l) -eq 1 ]; then
         cpu_load="$mid"
-    elif [ $(echo "$load < 80.0" | bc -l) -eq 1 ]; then
+    elif [ $(echo "$cur_load < 0.7" | bc -l) -eq 1 ]; then
         cpu_load="$high"
     else
         cpu_load="$stress"
     fi
 
-    cpu_load="󰍛 $cpu_load%^d^"
-
+    cpu_load="󰍛 ^c$cpu_load^d^"
 }
 
 update_memory () {
@@ -92,12 +54,8 @@ update_memory () {
     memory="$icon $color^$free($percent_used%)^d^"
 }
 
-update_time () { 
+update_time () {
     time="$(date '+%d.%m.%Y %H:%M:%S')"
-}
-
-update_weather () {
-    weather="$(curl -s "wttr.in?format=2"| sed -E "s/^(.).*\+/\1/")"
 }
 
 update_wifi () {
@@ -122,28 +80,6 @@ update_wifi () {
     fi
 }
 
-RXPREV=-1
-TXPREV=-1
-
-update_rx_tx() {
-    RX="$(cat /sys/class/net/wlan0/statistics/rx_bytes)"
-    TX="$(cat /sys/class/net/wlan0/statistics/tx_bytes)"
-
-    if [ $RXPREV -ne -1 ]; then
-        let BWRX=$RX-$RXPREV
-        let BWTX=$TX-$TXPREV
-
-        down=$(echo $BWRX | awk '{ rx = $1/1024/1024; print rx}')
-        up=$(echo $BWTX | awk '{ tx = $1/1024/1024; print tx}')
-    fi
-    RXPREV=$RX
-    TXPREV=$TX
-}
-
-update_uptime () {
-    uptime="$(uptime | awk -F'( |,|:)+' '{d=h=m=0; if ($7=="min") m=$6; else {if ($7~/^day/) {d=$6;h=$8;m=$9} else {h=$6;m=$7}}} {print d+0,"days,",h+0,"hours,",m+0,"minutes"}')"
-}
-
 update_bat () {
     bat_discharging_9="󰂎 "
     bat_discharging_18="󰁺 "
@@ -164,58 +100,56 @@ update_bat () {
     bat_charging_84="󰂋 "
     bat_charging_95="󰂅 "
     charging=" "
-    
+
     if test -f "/sys/class/power_supply/BAT0/uevent"; then
         status="$(cat /sys/class/power_supply/BAT0/status)"
-	capacity="$(cat /sys/class/power_supply/BAT0/capacity)"
+        capacity="$(cat /sys/class/power_supply/BAT0/capacity)"
 
-	symbol=""
+        symbol=""
 
-	if [ $status = "Discharging" ]; then
-	    if [ $capacity -lt 10 ]; then
-		symbol=$bat_discharging_9
-	    elif [ $capacity -lt 19 ]; then
-		symbol=$bat_discharging_18
-	    elif [ $capacity -lt 28 ]; then
-		symbol=$bat_discharging_27
-	    elif [ $capacity -lt 37 ]; then
-		symbol=$bat_discharging_36
-	    elif [ $capacity -lt 46 ]; then
-		symbol=$bat_discharging_45
-	    elif [ $capacity -lt 55 ]; then
-		symbol=$bat_discharging_54
-	    elif [ $capacity -lt 64 ]; then
-		symbol=$bat_discharging_63
-	    elif [ $capacity -lt 73 ]; then
-		symbol=$bat_discharging_72
-	    elif [ $capacity -lt 82 ]; then
-		symbol=$bat_discharging_81
-	    elif [ $capacity -lt 91 ]; then
-		symbol=$bat_discharging_90
-	    else 
-		symbol=$bat_discharging_95
-	    fi
-        else 
-	    if [ $capacity -lt 15 ]; then
-		symbol=$bat_charging_14
-	    elif [ $capacity -lt 29 ]; then
-		symbol=$bat_charging_28
-	    elif [ $capacity -lt 43 ]; then
-		symbol=$bat_charging_42
-	    elif [ $capacity -lt 57 ]; then
-		symbol=$bat_charging_56
-	    elif [ $capacity -lt 71 ]; then
-		symbol=$bat_charging_70
-	    elif [ $capacity -lt 85 ]; then
-		symbol=$bat_charging_84
-	    else 
-		symbol=$bat_charging_95
-	    fi
-
-	    symbol="${symbol}${charging} "
-	fi
-
-	battery="${symbol}${capacity}%"
+        if [ $status = "Discharging" ]; then
+            if [ $capacity -lt 10 ]; then
+                symbol=$bat_discharging_9
+            elif [ $capacity -lt 19 ]; then
+                symbol=$bat_discharging_18
+            elif [ $capacity -lt 28 ]; then
+                symbol=$bat_discharging_27
+            elif [ $capacity -lt 37 ]; then
+                symbol=$bat_discharging_36
+            elif [ $capacity -lt 46 ]; then
+                symbol=$bat_discharging_45
+            elif [ $capacity -lt 55 ]; then
+                symbol=$bat_discharging_54
+            elif [ $capacity -lt 64 ]; then
+                symbol=$bat_discharging_63
+            elif [ $capacity -lt 73 ]; then
+                symbol=$bat_discharging_72
+            elif [ $capacity -lt 82 ]; then
+                symbol=$bat_discharging_81
+            elif [ $capacity -lt 91 ]; then
+                symbol=$bat_discharging_90
+            else
+                symbol=$bat_discharging_95
+            fi
+        else
+            if [ $capacity -lt 15 ]; then
+                symbol=$bat_charging_14
+            elif [ $capacity -lt 29 ]; then
+                symbol=$bat_charging_28
+            elif [ $capacity -lt 43 ]; then
+                symbol=$bat_charging_42
+            elif [ $capacity -lt 57 ]; then
+                symbol=$bat_charging_56
+            elif [ $capacity -lt 71 ]; then
+                symbol=$bat_charging_70
+            elif [ $capacity -lt 85 ]; then
+                symbol=$bat_charging_84
+            else
+                symbol=$bat_charging_95
+            fi
+            symbol="${symbol}${charging} "
+        fi
+        battery="${symbol}${capacity}%"
     fi
 }
 
@@ -226,7 +160,7 @@ update_bt () {
     gamepad="󰖺"
     no_gamepad="󰖻"
 
-    mac="ec:83:50:8a:52:70" # gamepad
+    mac="ec:83:50:8a:52:70" # my gamepad mac
 
     no_bt="^c#0082fc^󰂲^d^"
     bt="^c#0082fc^^d^"
@@ -267,10 +201,9 @@ update_vol () {
 }
 
 update_backlight () {
-    # you might need to change the path depending on your device
     read -r actual_brightness </sys/class/backlight/intel_backlight/actual_brightness
     read -r max_brightness </sys/class/backlight/intel_backlight/max_brightness
-    backlight="☀$((actual_brightness*100/max_brightness))%"
+    backlight="^c#ffff00^ ^d^ $((actual_brightness*100/max_brightness))%"
 }
 
 update_mic () {
@@ -278,12 +211,12 @@ update_mic () {
     unmuted_count=$(pactl list sources | grep -c 'Mute: no')
     mic_vol=""
 
-    if [ ${#sources[*]} -gt 2 ]; then
+    if [ ${#sources[*]} -eq 1 ]; then
         count=1
         for src in "${sources[@]}"
         do
             if [[ $src =~ "capture" ]]; then
-                src=${sources[$count-2]}
+                src=${sources[0]}
                 mic_vol=$(echo $src | awk -F/ '{print $2}')
                 break
             fi
@@ -299,12 +232,19 @@ update_mic () {
 }
 
 check_updates () {
-    num_updates=$(checkupdates | wc -l)
+    if [ -x "$(command -v checkupdates)" ]; then
+        num_updates=$(checkupdates | wc -l) # arch
+    elif [ -x "$(command -v apt)" ]; then
+        num_updates=$(apt-get -s dist-upgrade | awk '/^Inst/ { print $2 }' | wc -l) # debian
+    else
+        num_updates=-1
+    fi
 
     if [ $num_updates -eq 0 ]; then
         updates="^c#00ff00^ ^d^ up to date"
+    elif [ $num_updates -eq -1 ]; then
+        updates="^c#ff0000^can't fetch updates^d^"
     elif [ $num_updates -eq 1 ]; then
-
         updates="^c#d871a6^ ^d^ $num_updates update"
     else
         updates="^c#d871a6^ ^d^ $num_updates updates"
@@ -312,18 +252,9 @@ check_updates () {
 }
 
 root_space=0
-home_space=0
-games_space=0
 
 update_diskspace() {
     free_diskspace / root 
-    #free_diskspace /home home 
-    #free_diskspace /home/$USER/Games games 
-}
-
-update_bitcoin() {
-    btc_price=$(curl -s  https://api.coindesk.com/v1/bpi/currentprice.json | jq '.bpi.EUR.rate ' | sed 's/"//g')
-    bitcoin_price="^c#f7931a^ ^d^$btc_price€"
 }
 
 free_diskspace () {
@@ -349,37 +280,19 @@ free_diskspace () {
     if [ $2 = "root" ]; then
         root_space="$3  $colorstate$space($used_percent)^d^"
     fi
-
-    if [ $2 = "home" ]; then
-        home_space=$space
-    fi
-
-    if [ $2 = "games" ]; then
-        games_space="$3  $colorstate$space($used_percent)^d^"
-    fi
-}
-
-# For calcurse users, refer https://github.com/pystardust/automeet
-update_event () {
-    event="$(calcurse -n | sed 1d | \
-        sed -E "s_^ *\[(.*):(.*)\] ([^\t]*)\t?.*_[\1h \2m->\3]_")"
-    [ "[]" = "$event" ] && event=""
 }
 
 
-# modules that don't update on their own need to be run at the start for getting their initial value
-update_vol
-#update_mic
-update_time
+# initial values
+check_updates
 update_bat
-#check_updates
 update_diskspace
-#update_bt
-#update_bitcoin
-#update_backlight
+update_mic
+update_time
+update_vol
 
 display () {
-    xsetroot -name " $root_space | $memory | $cpu_load | $wifi_signal | $battery | $vol | $time "
+    xsetroot -name " $root_space | $updates | $cpu_load | $memory | $wifi_signal | $battery | $backlight | $vol | $mic | $time "
 }
 
 # SIGNALLING
@@ -397,28 +310,18 @@ display () {
 while true
 do
     sleep 1 & wait && {
-        # to update item ever n seconds with a offset of m
-        ## [ $((sec % n)) -eq m ] && update_item
-
-        #[ $((sec % 1)) -eq 0 ] && update_uptime
+        [ $((sec % 1)) -eq 0 ] && display
+        [ $((sec % 1)) -eq 0 ] && update_time
+        [ $((sec % 2)) -eq 0 ] && update_backlight
+        [ $((sec % 2)) -eq 0 ] && update_cpu_load
         [ $((sec % 2)) -eq 0 ] && update_vol
-        #[ $((sec % 2)) -eq 0 ] && update_mic
+        [ $((sec % 2)) -eq 0 ] && update_mic
         [ $((sec % 5)) -eq 0 ] && update_bat
-        [ $((sec % 1)) -eq 0 ] && update_time    # update time every 1 seconds
-        #[ $((sec % 1)) -eq 0 ] && update_rx_tx
-        #[ $((sec % 15)) -eq 0 ] && update_cpu    # update cpu every 15 seconds
-        [ $((sec % 15)) -eq 0 ] && update_cpu_load    # update cpu every 15 seconds
-        #[ $((sec % 15)) -eq 0 ] && update_bt
-        [ $((sec % 15)) -eq 0 ] && update_wifi
         [ $((sec % 15)) -eq 0 ] && update_memory
+        [ $((sec % 15)) -eq 0 ] && update_wifi
         [ $((sec % 30)) -eq 0 ] && update_diskspace
-        # [ $((sec % 3600)) -eq 2 ] && update_weather
-        # [ $((sec % 120)) -eq 2 ] && check_updates
-        # [ $((sec % 1800)) -eq 2 ] && update_bitcoin
-        # [ $((sec % 300)) -eq 1 ] && update_event
+        [ $((sec % 900)) -eq 2 ] && check_updates
 
-        # how often the display updates ( 5 seconds )
-        [ $((sec % 1 )) -eq 0 ] && display
         sec=$((sec + 1))
     }
 done
